@@ -50,7 +50,7 @@
         </section>
 
         <section>
-          <h2>Estamos en la oficina de Endesa</h2>
+          <h2>Estamos en una oficina de Endesa</h2>
         </section>
 
         <section>
@@ -77,6 +77,14 @@
         </section>
 
         <section data-background="images/robotfail1.gif">
+        </section>
+
+        <section>
+          <h2>
+            <blockquote>
+Tenemos la tendencia a sobrestimar el efecto de una tecnología en el corto plazo y subestimar el efecto a largo plazo.</blockquote>
+            <figcaption>Roy Amara</figcaption>
+          </h2>
         </section>
 
         <section>
@@ -251,39 +259,6 @@ Cylon.robot({
 
         <section>
           <section>
-            <h2>"Hola, mundo" de cosas</h2>
-            <h3>Arduino 101</h3>
-          </section>
-
-          <section data-background="http://localhost:8080/?action=stream">
-          </section>
-
-          <section>
-            <pre><code data-trim>
-var Cylon = require("cylon");
-
-Cylon.robot({
-  connections: {
-    arduino: { adaptor: "firmata", port: "/dev/ttyACM0" }
-  },
-
-  devices: {
-    led: { driver: "led", pin: 13 }
-  },
-
-  work: function(my) {
-    every((1).second(), my.led.toggle);
-  }
-}).start();
-            </code></pre>
-          </section>
-
-          <section data-background="http://localhost:8080/?action=stream">
-          </section>
-        </section>
-
-        <section>
-          <section>
             <h2>"Hola, mundo" de cosas, parte 2</h2>
             <h3>Intel Edison</h3>
           </section>
@@ -297,7 +272,7 @@ var Cylon = require("cylon");
 
 Cylon.robot({
   connections: {
-    arduino: { adaptor: "edison" }
+    board: { adaptor: "edison" }
   },
 
   devices: {
@@ -317,7 +292,11 @@ Cylon.robot({
 
         <section>
           <section>
-            <h2>Aplicación "benelit"</h2>
+            <h2>Aplicación</h2>
+          </section>
+
+          <section>
+            <h2>"Miniluminado"</h2>
           </section>
 
           <section>
@@ -336,7 +315,7 @@ Cylon.robot({
         <section>
           <section>
             <h2>Estación de sensores</h2>
-            <h3>Arduino 101 + Sensores + MQTT</h3>
+            <h3>Intel Edison + Sensores + MQTT</h3>
           </section>
 
           <section data-background="http://localhost:8080/?action=stream">
@@ -344,7 +323,39 @@ Cylon.robot({
 
           <section>
             <pre><code data-trim>
-// code here...
+var Cylon = require("cylon");
+
+Cylon.robot({
+  connections: {
+    placa: { adaptor: "intel-iot" },
+    servidor: { adaptor: "mqtt", host: process.env.SERVIDOR }
+  },
+  devices: {
+    termo: { driver: "temperature-sensor", pin: 0, connection: "placa" },
+    luz: { driver: "analog-sensor", pin: 1, connection: "placa" },
+    dial: { driver: "analog-sensor", pin: 2, connection: "placa" }
+  },
+
+  work: function(mi) {
+    every(100, function() {
+      var val = mi.termo.celsius();
+      console.log("termometro valor:", val);
+      mi.servidor.publish("sensores/termo", val.toString());
+    });
+
+    mi.luz.on("analogRead", function(val) {
+      console.log("luz valor:", val);
+      mi.servidor.publish("sensores/luz", val.toString());
+    });
+
+    mi.dial.on("analogRead", function(val) {
+      console.log("dial valor:", val);
+      mi.servidor.publish("sensores/dial", val.toString());
+    });
+  }
+});
+
+Cylon.start();
             </code></pre>
           </section>
 
@@ -355,7 +366,7 @@ Cylon.robot({
         <section>
           <section>
             <h2>Estación base</h2>
-            <h3>Intel Edison + LEDs + MQTT</h3>
+            <h3>Intel Arduino 101 + LEDs + Robeaux + MQTT</h3>
           </section>
 
           <section data-background="http://localhost:8080/?action=stream">
@@ -363,8 +374,105 @@ Cylon.robot({
 
           <section>
             <pre><code data-trim>
-// code here...
+var Cylon = require("cylon");
+
+Cylon.api("http", {
+  ssl: false,
+  port: 3000
+});
+
+Cylon.robot({
+  connections: {
+    placa: { adaptor: "firmata", port: "/dev/ttyACM0" },
+    servidor: { adaptor: "mqtt", host: process.env.SERVIDOR }
+  },
+  devices: {
+    leds: { driver: "rgb-led", redPin: 3, greenPin: 5, bluePin: 6, connection: "placa" },
+    termo: { driver: "mqtt", topic: "sensores/termo", connection: "servidor" },
+    luz: { driver: "mqtt", topic: "sensores/luz", connection: "servidor" },
+    dial: { driver: "mqtt", topic: "sensores/dial", connection: "servidor" },
+    drone: { driver: "mqtt", topic: "drones/reparaciones", connection: "servidor" }
+  },
+
+  estrellar: function() {
+    var mi = this;
+    mi.estrellando = true;
+    mi.activado = false;
+    mi.intermitente = setInterval(function(){
+      if (mi.activado) {
+        mi.leds.setRGB("ff00ff");
+        mi.activado = false;
+      } else {
+        mi.leds.setRGB("0000ff");
+        mi.activado = true;
+      }
+    }, 500);
+  },
+
+  work: function(mi) {
+    mi.leds.setRGB("0000ff");
+
+    mi.termo.on("message", function(val) {
+      console.log("termo:", val.toString());
+    });
+
+    mi.luz.on("message", function(val) {
+      console.log("luz:", val.toString());
+    });
+
+    mi.dial.on("message", function(val) {
+      var fuerza = parseInt(val.toString());
+      console.log("dial:", fuerza);
+      if (mi.estrellando) return;
+      if (fuerza < 100) {
+        mi.leds.setRGB("ff0000");
+      } else if (fuerza < 500) {
+        mi.leds.setRGB("ffff00");
+      } else {
+        mi.leds.setRGB("00ff00");
+      }
+    });
+
+    mi.drone.on("message", function(val) {
+      var estado = val.toString();
+      console.log("drone:", estado);
+      if (estado == "despegue") {
+        mi.estrellar();
+      } else if (estado == "descenso") {
+        mi.estrellando = false;
+        clearInterval(mi.intermitente);
+      } else {
+        console.log("nada");
+      }
+    });
+  }
+});
+
+Cylon.start();
             </code></pre>
+          </section>
+
+          <section>
+            <div class="image-container">
+              <img src="images/robeaux-logo.png">
+            </div>
+            <h3>robeaux.io</h3>
+          </section>
+
+          <section>
+            <div class="image-container">
+              <img src="images/react-logo.png">
+            </div>
+          </section>
+
+          <section>
+            <div class="image-container">
+              <img src="images/babel-logo.png">
+            </div>
+          </section>
+
+          <section>
+            <a target="_blank" href="http://192.168.1.8:8080">Robeaux Demo</a>
           </section>
 
           <section data-background="http://localhost:8080/?action=stream">
@@ -374,7 +482,7 @@ Cylon.robot({
         <section>
           <section>
             <h2>Sistema de reparación</h2>
-            <h3>Parrot Minidrone + DS3 + MQTT</h3>
+            <h3>Parrot Minidrone + Controlador de DS3 + MQTT</h3>
           </section>
 
           <section data-background="http://localhost:8080/?action=stream">
@@ -382,7 +490,111 @@ Cylon.robot({
 
           <section>
             <pre><code data-trim>
-// code here...
+var Cylon = require("cylon");
+
+Cylon.robot({
+  connections: {
+    joystick: { adaptor: "joystick" },
+    minidrone: { adaptor: "rolling-spider", uuid: process.env.ID},
+    servidor: { adaptor: "mqtt", host: process.env.SERVIDOR }
+  },
+  devices: {
+    controlador: { driver: "dualshock-3", connection: "joystick", description: "ShanWan PS(R) Ga`epad" },
+    drone:  { driver: "rolling-spider", connection: "minidrone" }
+  },
+  work: function() {
+    var mi = this,
+        rightStick = { x: 0.0, y: 0.0 },
+        leftStick = { x: 0.0, y: 0.0 },
+        cmd = {};
+
+    mi.controlador.on("triangle:press", function() {
+      mi.drone.takeOff();
+      mi.servidor.publish("drones/reparaciones", "despegue")
+    });
+
+    mi.controlador.on("x:press", function() {
+      mi.drone.land();
+      mi.servidor.publish("drones/reparaciones", "descenso")
+    });
+
+    mi.controlador.on("square:press", function() {
+      mi.drone.hover();
+    });
+
+    mi.controlador.on("circle:press", function() {
+      mi.drone.frontFlip();
+    });
+
+    mi.controlador.on("right_x:move", function(data) {
+      rightStick.x = data;
+    });
+
+    mi.controlador.on("right_y:move", function(data) {
+      rightStick.y = data;
+    });
+
+    mi.controlador.on("left_x:move", function(data) {
+      leftStick.x = data;
+    });
+
+    mi.controlador.on("left_y:move", function(data) {
+      leftStick.y = data;
+    });
+
+    setInterval(function() {
+      var tilt = 0,
+          forward = 0,
+          turn = 0,
+          up = 0,
+          steps = 1;
+
+      if (rightStick.y < 0) {
+        forward = validatePitch(rightStick.y);
+      } else if (rightStick.y > 0) {
+        forward = validatePitch(rightStick.y) * -1;
+      }
+
+      if (rightStick.x > 0) {
+        tilt = validatePitch(rightStick.x);
+      } else if (rightStick.x < 0) {
+        tilt = validatePitch(rightStick.x) * -1;
+      }
+
+      if (leftStick.y < 0) {
+        up = validatePitch(leftStick.y);
+      } else if (leftStick.y > 0) {
+        up = validatePitch(leftStick.y) * -1;
+      }
+
+      if (leftStick.x > 0) {
+        turn = validatePitch(leftStick.x);
+      } else if (leftStick.x < 0) {
+        turn = validatePitch(leftStick.x) * -1;
+      }
+
+      cmd.tilt = tilt;
+      cmd.forward = forward;
+      cmd.turn = turn;
+      cmd.up = up;
+
+      mi.drone.drive(cmd, steps);
+    }, 0);
+  }
+}).start();
+
+function validatePitch(data) {
+  var value = Math.abs(data);
+  if (value >= 0.1) {
+    if (value <= 1.0) {
+      return ((Math.round(value * 100.0) / 100.0) * 100) | 0;
+    } else {
+      return (1.0 * 100) | 0;
+    }
+  } else {
+    return 0 ;
+  }
+}
             </code></pre>
           </section>
 
