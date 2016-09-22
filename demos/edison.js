@@ -2,7 +2,7 @@ var Cylon = require("cylon");
 
 Cylon.robot({
   connections: {
-    arduino: { adaptor: "firmata", port: "/dev/ttyACM0" }
+    edison: { adaptor: "intel-iot" }
   },
 
   devices: {
